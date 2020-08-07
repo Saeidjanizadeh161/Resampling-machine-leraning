@@ -1,0 +1,389 @@
+
+########
+setwd("C:\\Users\\saidj\\Desktop\\modelgully\\layers")
+library(raster)
+library(xlsx)
+install.packages("sp",dependences=T)
+library(sp)
+######raster data#########
+Aspect<-raster("aspect.tif")
+DEM<-raster("dem.tif")
+Clay<-raster("clay.tif")
+Drainage.density<-raster("drainage.tif")
+Landuse<-raster("landuse.tif")
+Lithology<-raster("lithology.tif")
+NDVI<-raster("NDVI.tif")
+Plan.curvature<-raster("plan.tif")
+Profile.curvature<-raster("profile.tif")
+Distance.from.road<-raster("road.tif")
+Sand<-raster("sand.tif")
+Silt<-raster("silt.tif")
+Slope<-raster("slope.tif")
+Soil<-raster("soil.tif")
+SPI<-raster("SPI.tif")
+TPI<-raster("TPI.tif")
+TRI<-raster("TRI.tif")
+TWI<-raster("TWI.tif")
+Distance.from.river<-raster("riverdis.tif")
+
+
+
+
+######stack data#################3
+Gully.data<-stack(Aspect,DEM,Clay,Drainage.density,Landuse,Lithology,NDVI,Plan.curvature,Profile.curvature,Distance.from.road,Sand,Silt,Slope,Soil,TPI,TWI,Distance.from.river)
+plot(Gully.data)
+
+#######shape file data##########3
+gullypoint<-shapefile("pointg2.shp")
+plot(gullypoint)
+gullypoint1<-as.data.frame(gullypoint)
+write.csv(gullypoint1,"gullypoint1.csv")
+
+##############extract point#######################################################
+variables.gullym<-extract(Gully.data, gullypoint)
+write.csv(variables.gullym, "variables.gullym.csv")
+
+###############read data############################################################33
+data <- read.csv("C:\\Users\\saidj\\Desktop\\modelgully\\layers\\variables.gullym.csv", 1)
+names(data)
+dataindep<-data [,c(-1,-17,-20)]
+
+variableall <- read.csv("C:\\Users\\saidj\\Desktop\\modelgully\\layers\\Variables.csv", 1)
+variableallp<-variableall[,c(-1,-2,-3)]
+
+##################split data####################
+datam<-data[,c(-1,-17)]
+datam<-data[,c(-1,-17)]
+data1<-sort(sample(nrow(datam), nrow(datam)*.7))
+train<-datam[data1,]
+names(train)
+test<-datam[-data1,]
+trainX<-train[,-18]
+trainY<-train[,18]
+testX<-test[,-18]
+testY<-test[,18]
+trainY
+###################Resampling alghorithms################################
+install.packages("caret",dependences=T)
+library(caret)
+install.packages("mlbench",dependences=T)
+library(mlbench)
+
+#########non-resample####
+fitControl <- trainControl(method = "none", classProbs = TRUE)
+
+#######cross validation 5fold#############
+fitControl5 <- trainControl(## 5-fold CV
+                           method = "repeatedcv",
+                           number = 5,
+                           ## repeated ten times
+                           repeats = 10)
+
+#######cross validation 10fold#############
+fitControl10 <- trainControl(## 10-fold CV
+                           method = "repeatedcv",
+                           number = 10,
+                           ## repeated ten times
+                           repeats = 10)
+
+#######bootstrap######
+train_controlb <- trainControl(method="boot", number=10)
+
+
+#####optimisim bootstrap#######
+train_controlob <- trainControl(method="optimism_boot", number=10)
+
+##############GBM model####################
+set.seed(825)
+gbmFit1 <- train(Gully ~ ., data = train, 
+                 method = "gbm", 
+                 trControl = fitControl,
+                 ## This last option is actually one
+                 ## for gbm() that passes through
+                 verbose = FALSE)
+testgbm1<-predict(gbmFit1 , newdata =testX)
+write.csv(testgbm1, "gbmtestn.csv")
+traingbm1<-predict(gbmFit1 , newdata =trainX)
+write.csv(traingbm1, "gbmtrainn.csv")
+
+####
+
+gbmFit5 <- train(Gully ~ ., data = train, 
+                 method = "gbm", 
+                 trControl = fitControl5,
+                 ## This last option is actually one
+                 ## for gbm() that passes through
+                 verbose = FALSE)
+gbmFit5 
+trellis.par.set(caretTheme())
+plot(gbmFit5)
+
+testgbm5<-predict(gbmFit5 , newdata =testX)
+write.csv(testgbm5, "gbmtest5.csv")
+traingbm5<-predict(gbmFit5 , newdata =trainX)
+write.csv(traingbm5, "gbmtrain5.csv")
+
+####
+
+gbmFit10 <- train(Gully ~ ., data = train, 
+                 method = "gbm", 
+                 trControl = fitControl10,
+                 ## This last option is actually one
+                 ## for gbm() that passes through
+                 verbose = FALSE)
+
+gbmFit10 
+trellis.par.set(caretTheme())
+plot(gbmFit10)
+
+trellis.par.set(caretTheme())
+plot(gbmFit10)
+ 
+testgbm10<-predict(gbmFit10 , newdata =testX)
+write.csv(testgbm10, "gbmtest10.csv")
+traingbm10<-predict(gbmFit10 , newdata =trainX)
+write.csv(traingbm10, "gbmtrain10.csv")
+
+
+#####
+gbmFitb <- train(Gully ~ ., data = train, 
+                 method = "gbm", 
+                 trControl = train_controlb,
+                 ## This last option is actually one
+                 ## for gbm() that passes through
+                 verbose = FALSE)
+gbmFitb 
+trellis.par.set(caretTheme())
+plot(gbmFitb)
+
+trellis.par.set(caretTheme())
+plot(gbmFitb)
+
+testgbmb<-predict(gbmFitb , newdata =testX)
+write.csv(testgbmb, "gbmtestb.csv")
+traingbmb<-predict(gbmFitb, newdata =trainX)
+write.csv(traingbmb, "gbmtrainb.csv")
+####
+
+
+gbmFitob <- train(Gully ~ ., data = train, 
+                 method = "gbm", 
+                 trControl = train_controlob,
+                 ## This last option is actually one
+                 ## for gbm() that passes through
+                 verbose = FALSE)
+
+trellis.par.set(caretTheme())
+plot(gbmFitob)
+
+gbmFitob
+testgbmob<-predict(gbmFitob, newdata =test)
+write.csv(testgbmob, "gbmtestob.csv")
+traingbmob<-predict(gbmFitob, newdata =trainX)
+write.csv(traingbmob, "gbmtrainob.csv")
+
+
+####prepration gully sceptibility map##########
+gbmoball<-predict(gbmFitob, newdata =variableallp)
+Gball1<-as.data.frame(gbmoball)
+write.csv(Gball1, "Gball1.csv")  
+
+GBMpred<- read.csv("C:\\Users\\saidj\\Desktop\\modelgully\\layers\\Gball1.csv", 1)
+names(GBMpred)
+coordinates(GBMpred) <- ~x+y
+rast <- raster(ncol = 667, nrow = 1116)
+extent(rast) <- extent(DEM)
+GBMrast<-rasterize(GBMpred, rast, GBMpred$gbmoball, fun = mean)
+NBrast
+plot(GBMrast)
+writeRaster(GBMrast, file="GBMmodel2.asc", format="ascii")
+###########SVM Model#################################################################
+library(e1071)
+
+svmFit <- train(Gully ~ ., data = train, 
+                 method = "svmRadial", 
+                 trControl = fitControl, 
+                 preProc = c("center", "scale"))
+
+testsvmn<-predict(svmFit, newdata =testX)
+write.csv(testsvmn, "svmtestn.csv")
+trainsvmn<-predict(svmFit, newdata =trainX)
+write.csv(trainsvmn, "svmtrainn.csv")
+#######
+
+set.seed(825)
+svmFit5 <- train(Gully ~ ., data = train, 
+                 method = "svmRadial", 
+                 trControl = fitControl5, 
+                 preProc = c("center", "scale"),
+                 tuneLength = 10)
+
+trellis.par.set(caretTheme())
+plot(svmFit5)
+svmFit5
+
+testsvm5<-predict(svmFit5, newdata =testX)
+write.csv(testsvm5, "svmtest5.csv")
+trainsvm5<-predict(svmFit5, newdata =trainX)
+write.csv(trainsvm5, "svmtrain5.csv")
+
+trellis.par.set(caretTheme())
+plot(svmFit5)
+###########
+
+svmFit10 <- train(Gully ~ ., data = train, 
+                 method = "svmRadial", 
+                 trControl = fitControl10, 
+                 preProc = c("center", "scale"),
+                 tuneLength = 10)
+
+trellis.par.set(caretTheme())
+plot(svmFit10)
+svmFit10
+
+testsvm10<-predict(svmFit10, newdata =testX)
+write.csv(testsvm10, "svmtest10.csv")
+trainsvm10<-predict(svmFit10, newdata =trainX)
+write.csv(trainsvm10, "svmtrain10.csv")
+##
+svmFitb <- train(Gully ~ ., data = train, 
+                 method = "svmRadial", 
+                 trControl = train_controlb, 
+                 preProc = c("center", "scale"),
+                 tuneLength = 10)
+
+trellis.par.set(caretTheme())
+plot(svmFitb)
+svmFitb
+
+testsvmb<-predict(svmFitb, newdata =testX)
+write.csv(testsvmb, "svmtestb.csv")
+trainsvmb<-predict(svmFitb, newdata =trainX)
+write.csv(trainsvmb, "svmtrainb.csv")
+
+############
+svmFitob <- train(Gully ~ ., data = train, 
+                 method = "svmRadial", 
+                 trControl = train_controlob, 
+                 preProc = c("center", "scale"),
+                 tuneLength = 10)
+
+
+trellis.par.set(caretTheme())
+plot(svmFitob ) 
+svmFitob 
+testsvmob<-predict(svmFitob, newdata =testX)
+write.csv(testsvmob, "svmtestob.csv")
+trainsvmob<-predict(svmFitob, newdata =trainX)
+write.csv(trainsvmob, "svmtrainob.csv")
+
+####prepration gully sceptibility map##########
+SVMall<-predict(svmFitob, newdata =variableallp)
+
+SVMall1<-as.data.frame(SVMall)
+write.csv(SVMall1, "SVMall1.csv")
+SVMpred<- read.csv("C:\\Users\\saidj\\Desktop\\modelgully\\layers\\SVMall1.csv", 1)
+names(SVMpred)
+coordinates(SVMpred) <- ~x+y
+rast <- raster(ncol = 667, nrow = 1116)
+extent(rast) <- extent(DEM)
+SVMrast<-rasterize(SVMpred, rast, SVMpred$SVMall, fun = mean)
+NBrast
+plot(SVMrast)
+writeRaster(SVMrast, file="SVMmodel2.asc", format="ascii")
+
+#####RF Model#########################################################################33
+
+library(randomForest)
+
+
+set.seed(123)
+RFn<- train(Gully ~., data = train, method = "rf", trControl = fitControl,importance=T)
+testRfn<-predict(RFn, newdata =testX)
+write.csv(testRfn, "rftestn.csv")
+trainrfn<-predict(RFn, newdata =trainX)
+write.csv(trainrfn, "rftrainn.csv")
+
+#############
+RF5 <- train(Gully ~ ., data = train, 
+                 method = "rf", 
+                 trControl = fitControl5, 
+                 tuneLength = 10)
+
+trellis.par.set(caretTheme())
+plot(Boost5) 
+Boost5
+testrf5<-predict(RF5 , newdata =testX)
+write.csv(testrf5, "rftest5.csv")
+trainrf5<-predict(RF5, newdata =trainX)
+write.csv(trainrf5, "rftrain5.csv")
+
+###################
+
+RF10 <- train(Gully ~ ., data = train, 
+                 method = "rf", 
+                 trControl = fitControl10, 
+                 tuneLength = 10)
+
+
+trellis.par.set(caretTheme())
+plot(RF10)
+RF10
+
+testRF10<-predict(RF10 , newdata =testX)
+write.csv(testRF10, "rftest10.csv")
+trainrf10<-predict(RF10, newdata =trainX)
+write.csv(trainrf10, "rftrain10.csv")
+
+##########
+
+RFb <- train(Gully ~ ., data = train, 
+                 method = "rf", 
+                 trControl = train_controlb, 
+                 tuneLength = 10,importance=T)
+trellis.par.set(caretTheme())
+plot(RFb)
+RFb
+testRFb<-predict(RFb, newdata =testX)
+write.csv(testRFb, "rftestb.csv")
+trainrfb<-predict(RFb, newdata =trainX)
+write.csv(trainrfb, "rftrainb.csv")
+
+########
+RFob <- train(Gully ~ ., data = train, 
+                 method = "rf", 
+                 trControl = train_controlob, 
+                 tuneLength = 10,importance=T)
+RFob 
+testRFob<-predict(RFob, newdata =testX)
+write.csv(testRFob, "rftestob.csv")
+trainrf0b<-predict(RFob, newdata =trainX)
+write.csv(trainrf0b, "rftrainob.csv")
+
+trellis.par.set(caretTheme())
+plot(RFob)
+RFob
+importance = varImp(RFob, scale=FALSE)
+
+importance 
+
+trellis.par.set(caretTheme())
+plot(RFob) 
+
+####prepration gully sceptibility map##########
+
+RFall<-predict(RFob, newdata =variableallp)
+
+RFall1<-as.data.frame(RFall)
+write.csv(RFall1, "RFallc.csv")
+RFpred<- read.csv("C:\\Users\\saidj\\Desktop\\modelgully\\layers\\RFallc.csv", 1)
+names(RFpred)
+coordinates(RFpred) <- ~x+y
+rast <- raster(ncol = 667, nrow = 1116)
+extent(rast) <- extent(DEM)
+RFrast<-rasterize(RFpred, rast, RFpred$RFall, fun = mean)
+NBrast
+plot(RFrast)
+writeRaster(RFrast, file="RFmodelc.asc", format="ascii")
+
+
